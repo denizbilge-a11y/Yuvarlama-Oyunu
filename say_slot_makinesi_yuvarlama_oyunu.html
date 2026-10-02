@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4. Sınıf Sayı Slot Makinesi - Yuvarlama Oyunu</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Fredoka', 'Outfit', sans-serif;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+            user-select: none;
+        }
+
+        /* Slot Machine Chassis */
+        .slot-chassis {
+            background: linear-gradient(145deg, #1e1b4b, #2e1065);
+            box-shadow: 0 0 50px rgba(245, 158, 11, 0.4), inset 0 0 25px rgba(0, 0, 0, 0.8);
+            border: 4px solid #f59e0b;
+        }
+
+        .reel-viewport {
+            background: #090d16;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.95), inset 0 -10px 20px rgba(0,0,0,0.95);
+        }
+
+        .reel-tile {
+            background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+            color: #0f172a;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,1);
+            transition: transform 0.1s ease-in-out;
+        }
+
+        /* Spinning reel blur animation */
+        .blur-spin {
+            filter: blur(4px);
+            animation: reelSpin 0.08s infinite linear;
+        }
+
+        @keyframes reelSpin {
+            0% { transform: translateY(-18%); }
+            100% { transform: translateY(18%); }
+        }
+
+        /* Glassmorphism containers */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+        }
+
+        /* Input highlight states */
+        .input-correct {
+            border-color: #10b981 !important;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
+        }
+
+        .input-wrong {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+
+        /* Golden Trophy pulse animation */
+        .trophy-glow {
+            animation: trophyPulse 1.8s infinite alternate ease-in-out;
+        }
+
+        @keyframes trophyPulse {
+            0% { filter: drop-shadow(0 0 20px #f59e0b) scale(1); }
+            100% { filter: drop-shadow(0 0 50px #fbbf24) scale(1.1); }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen justify-between p-2 sm:p-4 overflow-x-hidden">
+
+    <canvas id="confettiCanvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+    <!-- TOP HEADER BAR -->
+    <header class="max-w-6xl mx-auto w-full mb-3">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-3 bg-slate-900/90 p-3 sm:p-4 rounded-2xl border border-slate-700 shadow-2xl">
+            
+            <!-- Game Title & Active Student Name -->
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-2xl flex items-center justify-center text-2xl shadow-lg text-slate-950 font-extrabold rotate-3">
+                    🎰
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg sm:text-2xl font-black text-white tracking-wide">
+                            Sayı Slot Makinesi
+                        </h1>
+                        <span id="headerTrophyBadge" class="hidden text-xl" title="1000 Puan Şampiyonu!">🏆</span>
+                    </div>
+                    <p class="text-xs sm:text-sm font-bold text-amber-400 flex items-center gap-1.5">
+                        <span>👋 Hoş Geldin: <span id="studentNameText" class="underline decoration-amber-500">Oyuncu</span></span>
+                        <button onclick="openNameModal(true)" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-600 transition">
+                            İsmi Değiştir
+                        </button>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Score, Rank and Streak Indicators -->
+            <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-5 bg-slate-950/80 px-4 py-2 rounded-2xl border border-slate-800 text-xs sm:text-sm">
+                <!-- Current Score -->
+                <div class="flex items-center gap-2">
+                    <span class="text-amber-400 text-2xl">⭐</span>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">Mevcut Puan</div>
+                        <div id="scoreDisplay" class="font-extrabold text-amber-300 text-xl sm:text-2xl">0</div>
+                    </div>
+                </div>
+
+                <div class="h-8 w-px bg-slate-800"></div>
+
+                <!-- Current Rank -->
+                <div class="flex items-center gap-2">
+                    <span id="rankBadgeIcon" class="text-2xl">🥉</span>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">Rütben</div>
+                        <div id="rankTitleDisplay" class="font-bold text-slate-200 text-xs sm:text-sm">Onluk Çaylağı</div>
+                    </div>
+                </div>
+
+                <div class="h-8 w-px bg-slate-800"></div>
+
+                <!-- Streak -->
+                <div class="flex items-center gap-1.5">
+                    <span class="text-orange-500 text-xl">🔥</span>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">Seri</div>
+                        <div id="streakDisplay" class="font-bold text-orange-400 text-sm sm:text-base">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header Action Controls -->
+            <div class="flex items-center gap-2">
+                <button id="soundToggleBtn" onclick="toggleSound()" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition border border-slate-700" title="Sesi Aç/Kapat">
+                    <i id="soundIcon" class="fas fa-volume-up text-base"></i>
+                </button>
+                <button onclick="openRulesModal()" class="px-3 py-2 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-xl transition font-medium text-xs sm:text-sm flex items-center gap-1.5 border border-indigo-400/30">
+                    <i class="fas fa-book-open"></i> Kurallar
+                </button>
+                <button onclick="openHistoryModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition font-medium text-xs sm:text-sm flex items-center gap-1.5 border border-slate-700">
+                    <i class="fas fa-history"></i> Geçmiş
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 1000 POINT PROGRESS BAR TO CHAMPION TROPHY -->
+    <div class="max-w-6xl mx-auto w-full mb-3 px-1">
+        <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 flex flex-col gap-1.5 shadow-md">
+            <div class="flex justify-between items-center text-xs font-bold">
+                <span id="rankProgressLabel" class="text-amber-400">Rütbe İlerlemesi (Hedef: 100 Puan)</span>
+                <span id="rankProgressPercent" class="text-slate-300">0 / 1000 Puan (%0)</span>
+            </div>
+            <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
+                <div id="rankProgressBar" class="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 transition-all duration-500 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN INTERACTIVE GAME PANEL -->
+    <main class="max-w-6xl mx-auto w-full flex-grow flex flex-col justify-center my-1">
+        
+        <!-- Digit Level Selection Buttons -->
+        <div class="flex flex-wrap items-center justify-center gap-2 mb-3">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Basamak Sayısı:</span>
+            <button onclick="setDigitLevel('4')" id="digitBtn4" class="digit-selector active px-4 py-1.5 rounded-full text-xs font-bold transition bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg scale-105">
+                4 Basamaklı
+            </button>
+            <button onclick="setDigitLevel('5')" id="digitBtn5" class="digit-selector px-4 py-1.5 rounded-full text-xs font-bold transition bg-slate-800 text-slate-300 hover:bg-slate-700">
+                5 Basamaklı
+            </button>
+            <button onclick="setDigitLevel('6')" id="digitBtn6" class="digit-selector px-4 py-1.5 rounded-full text-xs font-bold transition bg-slate-800 text-slate-300 hover:bg-slate-700">
+                6 Basamaklı
+            </button>
+            <button onclick="setDigitLevel('mixed')" id="digitBtnMixed" class="digit-selector px-4 py-1.5 rounded-full text-xs font-bold transition bg-slate-800 text-slate-300 hover:bg-slate-700">
+                🎲 Karışık
+            </button>
+        </div>
+
+        <!-- 3-COLUMN MAIN LAYOUT: LEFT (TEN) - CENTER (SLOT REELS) - RIGHT (HUNDRED) -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            
+            <!-- LEFT BOX: EN YAKIN ONLUK -->
+            <div class="md:col-span-3 order-2 md:order-1">
+                <div id="cardTen" class="glass-card p-4 sm:p-5 rounded-3xl border-2 border-blue-500/40 shadow-xl relative overflow-hidden transition-all">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[11px] font-bold px-2.5 py-1 rounded-lg">
+                            ⬅️ SOL KUTU
+                        </span>
+                        <span class="text-2xl">🔟</span>
+                    </div>
+
+                    <label for="inputTen" class="block text-sm font-extrabold text-blue-200 mb-1">
+                        En Yakın Onluk
+                    </label>
+                    <p class="text-[11px] text-slate-400 mb-3 leading-tight">
+                        Birler basamağına bak! (1-4 ⬇️ / 5-9 ⬆️)
+                    </p>
+
+                    <!-- Input Box -->
+                    <div class="relative">
+                        <input type="text" id="inputTen" inputmode="numeric" placeholder="Örn: 4580" autocomplete="off"
+                               class="w-full bg-slate-950/90 border-2 border-blue-500/50 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/20 rounded-2xl px-4 py-3 text-xl font-black text-center text-blue-100 placeholder:text-slate-600 outline-none transition shadow-inner disabled:opacity-60 disabled:bg-slate-900 disabled:cursor-not-allowed">
+                        <div id="badgeTen" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-xl"></div>
+                    </div>
+
+                    <!-- Feedback Note -->
+                    <div id="feedbackTen" class="mt-2 text-xs font-bold text-slate-400 min-h-[20px] text-center">
+                        Cevabını Yaz...
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER COLUMN: SLOT MACHINE REELS DISPLAY -->
+            <div class="md:col-span-6 order-1 md:order-2 flex flex-col items-center">
+                <div class="w-full relative max-w-lg">
+                    
+                    <!-- Slot Chassis -->
+                    <div class="slot-chassis rounded-3xl p-4 sm:p-6 relative">
+                        
+                        <!-- Top Header -->
+                        <div class="flex justify-between items-center mb-3 bg-slate-950/80 py-1.5 px-4 rounded-full border border-amber-500/30">
+                            <span class="text-amber-400 text-xs font-bold tracking-widest uppercase flex items-center gap-1">
+                                <i class="fas fa-star text-[10px]"></i> RASTGELE SAYI <i class="fas fa-star text-[10px]"></i>
+                            </span>
+                            <span id="digitCountBadge" class="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-md font-extrabold">
+                                4 Basamaklı
+                            </span>
+                        </div>
+
+                        <!-- Reel Viewport Window -->
+                        <div class="reel-viewport rounded-2xl p-3 sm:p-4 border border-slate-800 relative overflow-hidden min-h-[110px] flex items-center justify-center">
+                            <div id="reelsContainer" class="flex items-center justify-center gap-1.5 sm:gap-2.5 w-full">
+                                <!-- Dynamic Reels populated by JavaScript -->
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT BOX: EN YAKIN YÜZLÜK -->
+            <div class="md:col-span-3 order-3">
+                <div id="cardHundred" class="glass-card p-4 sm:p-5 rounded-3xl border-2 border-emerald-500/40 shadow-xl relative overflow-hidden transition-all">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold px-2.5 py-1 rounded-lg">
+                            SAĞ KUTU ➡️
+                        </span>
+                        <span class="text-2xl">💯</span>
+                    </div>
+
+                    <label for="inputHundred" class="block text-sm font-extrabold text-emerald-200 mb-1">
+                        En Yakın Yüzlük
+                    </label>
+                    <p class="text-[11px] text-slate-400 mb-3 leading-tight">
+                        Onlar basamağına bak! (1-4 ⬇️ / 5-9 ⬆️)
+                    </p>
+
+                    <!-- Input Box -->
+                    <div class="relative">
+                        <input type="text" id="inputHundred" inputmode="numeric" placeholder="Örn: 4600" autocomplete="off"
+                               class="w-full bg-slate-950/90 border-2 border-emerald-500/50 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/20 rounded-2xl px-4 py-3 text-xl font-black text-center text-emerald-100 placeholder:text-slate-600 outline-none transition shadow-inner disabled:opacity-60 disabled:bg-slate-900 disabled:cursor-not-allowed">
+                        <div id="badgeHundred" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-xl"></div>
+                    </div>
+
+                    <!-- Feedback Note -->
+                    <div id="feedbackHundred" class="mt-2 text-xs font-bold text-slate-400 min-h-[20px] text-center">
+                        Cevabını Yaz...
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- SIDE-BY-SIDE ACTION BUTTONS (ÖNEMLİ: YAN YANA BUTONLAR) -->
+        <div class="mt-5 flex flex-col items-center max-w-2xl mx-auto w-full gap-3">
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
+                <!-- 1. KOLU ÇEK BUTTON -->
+                <button id="spinBtn" onclick="pullLever()" 
+                        class="py-4 px-5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 active:scale-95 text-slate-950 font-black text-base sm:text-lg rounded-2xl shadow-xl transition flex items-center justify-center gap-2 border-b-4 border-orange-700">
+                    <i class="fas fa-arrows-rotate text-xl"></i>
+                    <span>🎰 KOLU ÇEK</span>
+                </button>
+
+                <!-- 2. CEVABI KONTROL ET BUTTON -->
+                <button id="checkBtn" onclick="checkAnswers()" 
+                        class="py-4 px-5 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-600 hover:from-emerald-400 hover:to-green-500 active:scale-95 text-slate-950 font-black text-base sm:text-lg rounded-2xl shadow-xl transition flex items-center justify-center gap-2 border-b-4 border-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                    <i class="fas fa-circle-check text-xl"></i>
+                    <span>✅ CEVABI KONTROL ET</span>
+                </button>
+            </div>
+
+            <!-- Question Locked Banner -->
+            <div id="lockedNotice" class="hidden w-full bg-emerald-950/80 border-2 border-emerald-500/60 text-emerald-200 text-xs sm:text-sm font-bold py-2.5 px-4 rounded-2xl text-center flex items-center justify-center gap-2 shadow-lg">
+                <i class="fas fa-lock text-emerald-400 text-base"></i>
+                <span>Tebrikler! Bu soruyu çözdün. Yeni puan kazanmak için <span class="underline font-black text-amber-300">'🎰 KOLU ÇEK'</span> butonuna bas!</span>
+            </div>
+
+            <!-- Hint Toggle Button -->
+            <button id="hintToggleBtn" onclick="toggleHintCard()" class="text-xs font-bold text-indigo-300 hover:text-indigo-200 bg-indigo-900/40 hover:bg-indigo-900/60 px-4 py-2 rounded-xl transition border border-indigo-500/30 flex items-center gap-2">
+                <i class="fas fa-lightbulb text-amber-400"></i>
+                <span>Nasıl Çözülür? (İpucu Göster)</span>
+            </button>
+
+            <!-- Main Feedback Box -->
+            <div id="mainFeedbackBox" class="hidden w-full p-4 rounded-2xl text-center font-bold text-sm transition-all border shadow-lg"></div>
+
+            <!-- Step-by-Step Breakdown Box -->
+            <div id="hintCard" class="hidden w-full bg-slate-900/95 border border-indigo-500/40 p-4 rounded-2xl text-xs space-y-3 shadow-2xl">
+                <div class="font-extrabold text-indigo-300 text-sm border-b border-slate-700 pb-2 flex items-center gap-2">
+                    <i class="fas fa-chalkboard-teacher text-amber-400"></i>
+                    <span>Çözüm Adımları</span>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-blue-500/30">
+                        <div class="font-bold text-blue-300 mb-1">1. En Yakın Onluk:</div>
+                        <p id="hintTenText" class="text-slate-300 leading-relaxed"></p>
+                    </div>
+
+                    <div class="bg-slate-950 p-3 rounded-xl border border-emerald-500/30">
+                        <div class="font-bold text-emerald-300 mb-1">2. En Yakın Yüzlük:</div>
+                        <p id="hintHundredText" class="text-slate-300 leading-relaxed"></p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MODAL 1: STUDENT NAME WELCOME PROMPT -->
+    <div id="nameModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-amber-500/60 w-full max-w-md rounded-3xl p-6 shadow-2xl relative text-center">
+            <div class="w-20 h-20 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-xl mb-4 rotate-3">
+                🎰
+            </div>
+
+            <h2 class="text-2xl font-black text-amber-400 mb-1">Sayı Slot Makinesine Hoş Geldin!</h2>
+            <p class="text-xs text-slate-300 mb-6">4. Sınıf Yuvarlama Oyunu • Başlamadan önce adını yaz:</p>
+
+            <form onsubmit="handleNameSubmit(event)" class="space-y-4">
+                <div>
+                    <input type="text" id="studentNameInput" placeholder="Adını Gir..." maxlength="25" required autocomplete="off"
+                           class="w-full bg-slate-950 border-2 border-amber-500/50 focus:border-amber-400 focus:ring-4 focus:ring-amber-500/20 rounded-2xl px-4 py-3.5 text-center text-lg font-bold text-amber-200 placeholder:text-slate-600 outline-none transition shadow-inner">
+                </div>
+
+                <button type="submit" class="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-lg rounded-2xl shadow-xl transition active:scale-95 border-b-4 border-orange-700">
+                    İSMİNİ GİR VE OYUNA BAŞLA 🚀
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: 1000 POINT TROPHY WINNER CELEBRATION -->
+    <div id="trophyModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-lg z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-4 border-amber-400 w-full max-w-2xl rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
+            <div class="absolute -inset-10 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="text-8xl sm:text-9xl mb-2 trophy-glow inline-block">
+                🏆
+            </div>
+
+            <div class="inline-block bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs sm:text-sm font-black px-4 py-1.5 rounded-full uppercase tracking-widest mb-3">
+                👑 YUVARLAMA KRALI & BÜYÜK KUPA SAHİBİ 👑
+            </div>
+
+            <h2 id="trophyStudentName" class="text-3xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-500 tracking-tight my-2 uppercase">
+                TEBRİKLER!
+            </h2>
+
+            <p class="text-base sm:text-xl text-slate-200 font-bold max-w-lg mx-auto mb-6 leading-relaxed">
+                <span class="text-amber-400 font-black text-2xl">1000 PUANA</span> ULAŞTIN VE BÜYÜK MATEMATİK KUPASINI KAZANDIN!
+            </p>
+
+            <button onclick="closeTrophyModal()" class="px-8 py-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base rounded-2xl shadow-xl transition active:scale-95">
+                OYUNA DEVAM ET 🎮
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 3: RULES GUIDE -->
+    <div id="rulesModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeRulesModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2 text-xl">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl">📚</span>
+                <h2 class="text-xl font-black text-amber-400">4. Sınıf Yuvarlama Kuralları</h2>
+            </div>
+
+            <div class="space-y-4 text-xs sm:text-sm text-slate-300">
+                <div class="bg-blue-950/50 p-4 rounded-2xl border border-blue-500/30">
+                    <h3 class="font-bold text-blue-300 text-base mb-2">🔟 En Yakın Onluğa Yuvarlama</h3>
+                    <p class="mb-2">Sayıların <span class="text-amber-300 font-bold">Birler Basamağına</span> bakılır:</p>
+                    <ul class="list-disc list-inside space-y-1 text-slate-300 pl-2">
+                        <li>Birler basamağı <span class="font-bold text-red-400">1, 2, 3, 4</span> ise 👉 <span class="text-blue-300 font-bold">Aşağı (Kendi Onluğu)</span></li>
+                        <li>Birler basamağı <span class="font-bold text-emerald-400">5, 6, 7, 8, 9</span> ise 👉 <span class="text-emerald-300 font-bold">Yukarı (Bir Üst Onluk)</span></li>
+                    </ul>
+                </div>
+
+                <div class="bg-emerald-950/50 p-4 rounded-2xl border border-emerald-500/30">
+                    <h3 class="font-bold text-emerald-300 text-base mb-2">💯 En Yakın Yüzlüğe Yuvarlama</h3>
+                    <p class="mb-2">Sayıların <span class="text-amber-300 font-bold">Onlar Basamağına</span> bakılır:</p>
+                    <ul class="list-disc list-inside space-y-1 text-slate-300 pl-2">
+                        <li>Onlar basamağı <span class="font-bold text-red-400">1, 2, 3, 4</span> ise 👉 <span class="text-blue-300 font-bold">Aşağı (Kendi Yüzlüğü)</span></li>
+                        <li>Onlar basamağı <span class="font-bold text-emerald-400">5, 6, 7, 8, 9</span> ise 👉 <span class="text-emerald-300 font-bold">Yukarı (Bir Üst Yüzlük)</span></li>
+                    </ul>
+                </div>
+
+                <div class="bg-amber-950/40 p-3 rounded-2xl border border-amber-500/30 text-amber-200 text-xs">
+                    ⭐ <b>Puanlama:</b> Doğru cevaplar <span class="text-emerald-400 font-bold">+10 Puan</span>. Hatalı cevaplar <span class="text-red-400 font-bold">-10 Puan</span>. Her 100 puanda 1 rütbe atlarsın!
+                </div>
+            </div>
+
+            <button onclick="closeRulesModal()" class="w-full mt-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl transition">
+                Anladım, Oyuna Dön! 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 4: SESSION HISTORY -->
+    <div id="historyModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <button onclick="closeHistoryModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2 text-xl">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl">📊</span>
+                <h2 class="text-xl font-black text-amber-400">Soru Çözüm Geçmişi</h2>
+            </div>
+
+            <div class="overflow-y-auto flex-grow rounded-2xl border border-slate-800 bg-slate-950 p-2">
+                <table class="w-full text-left text-xs sm:text-sm">
+                    <thead class="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider">
+                        <tr>
+                            <th class="p-3">Sayı</th>
+                            <th class="p-3">Onluk (Cevap)</th>
+                            <th class="p-3">Yüzlük (Cevap)</th>
+                            <th class="p-3 text-center">Sonuç</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="divide-y divide-slate-800 text-slate-300"></tbody>
+                </table>
+                <div id="emptyHistoryMsg" class="text-center py-8 text-slate-500 text-xs">
+                    Henüz soru çözülmedi. '🎰 KOLU ÇEK' butonuna basarak ilk soruyu başlat!
+                </div>
+            </div>
+
+            <div class="mt-4 flex justify-between items-center text-xs text-slate-400">
+                <span id="historyCount">Toplam Soru: 0</span>
+                <button onclick="clearHistory()" class="text-red-400 hover:text-red-300 underline">Geçmişi Temizle</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* Ranks Array - Every 100 Points */
+        const RANKS = [
+            { min: 0, title: "Onluk Çaylağı", badge: "🥉" },
+            { min: 100, title: "Yuvarlama Kalfa", badge: "🥈" },
+            { min: 200, title: "Sayı Büyücüsü", badge: "🧙‍♂️" },
+            { min: 300, title: "Matematik Yıldızı", badge: "⭐" },
+            { min: 400, title: "Akıl Küpü", badge: "🧠" },
+            { min: 500, title: "Yuvarlama Ustası", badge: "🥇" },
+            { min: 600, title: "Uzman Yuvarlayıcı", badge: "🎯" },
+            { min: 700, title: "Altın Dahi", badge: "👑" },
+            { min: 800, title: "Sayı Şampiyonu", badge: "🚀" },
+            { min: 900, title: "Efsane Matematikçi", badge: "💎" },
+            { min: 1000, title: "YUVARLAMA KRALI", badge: "🏆" }
+        ];
+
+        /* Game State Variables */
+        let studentName = "Oyuncu";
+        let currentNumber = 0;
+        let currentDigitCount = 4;
+        let currentMode = '4';
+        let score = 0;
+        let streak = 0;
+        let isSpinning = false;
+        let questionAnswered = false; // LOCK MECHANISM STATE
+        let trophyAwarded = false;
+        let soundEnabled = true;
+        let sessionHistory = [];
+
+        /* Web Audio API Synthesizer */
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtx = new AudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playTone(freq, type, duration, vol = 0.1) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function playLeverSound() {
+            playTone(200, 'sawtooth', 0.15, 0.15);
+            setTimeout(() => playTone(140, 'square', 0.2, 0.2), 80);
+        }
+
+        function playSpinTick() {
+            playTone(400 + Math.random() * 200, 'triangle', 0.04, 0.05);
+        }
+
+        function playStopTick() {
+            playTone(240, 'sine', 0.08, 0.12);
+        }
+
+        function playSuccessSound() {
+            if (!soundEnabled) return;
+            const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+            notes.forEach((freq, idx) => {
+                setTimeout(() => playTone(freq, 'sine', 0.2, 0.15), idx * 90);
+            });
+        }
+
+        function playErrorSound() {
+            if (!soundEnabled) return;
+            playTone(180, 'sawtooth', 0.2, 0.15);
+            setTimeout(() => playTone(130, 'sawtooth', 0.3, 0.15), 120);
+        }
+
+        function playFanfareSound() {
+            if (!soundEnabled) return;
+            const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+            notes.forEach((freq, idx) => {
+                setTimeout(() => playTone(freq, 'sine', 0.4, 0.2), idx * 130);
+            });
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            const btn = document.getElementById('soundToggleBtn');
+            if (soundEnabled) {
+                icon.className = 'fas fa-volume-up text-base';
+                btn.classList.remove('opacity-50');
+            } else {
+                icon.className = 'fas fa-volume-mute text-base';
+                btn.classList.add('opacity-50');
+            }
+        }
+
+        function handleNameSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('studentNameInput').value.trim();
+            if (input) {
+                studentName = input;
+                document.getElementById('studentNameText').textContent = studentName;
+                document.getElementById('trophyStudentName').textContent = `TEBRİKLER ${studentName.toUpperCase()}!`;
+                document.getElementById('nameModal').classList.add('hidden');
+            }
+        }
+
+        function openNameModal(isEdit = false) {
+            document.getElementById('studentNameInput').value = isEdit ? studentName : '';
+            document.getElementById('nameModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('studentNameInput').focus(), 100);
+        }
+
+        function getCurrentRank(pts) {
+            let activeRank = RANKS[0];
+            for (let i = RANKS.length - 1; i >= 0; i--) {
+                if (pts >= RANKS[i].min) {
+                    activeRank = RANKS[i];
+                    break;
+                }
+            }
+            return activeRank;
+        }
+
+        function updateRankDisplay() {
+            const currentRank = getCurrentRank(score);
+            document.getElementById('rankBadgeIcon').textContent = currentRank.badge;
+            document.getElementById('rankTitleDisplay').textContent = currentRank.title;
+
+            const label = document.getElementById('rankProgressLabel');
+            const percentText = document.getElementById('rankProgressPercent');
+            const bar = document.getElementById('rankProgressBar');
+
+            // Find next rank
+            let nextRank = null;
+            for (let i = 0; i < RANKS.length; i++) {
+                if (RANKS[i].min > score) {
+                    nextRank = RANKS[i];
+                    break;
+                }
+            }
+
+            if (nextRank) {
+                label.textContent = `Sonraki Rütbe: ${nextRank.title} (${nextRank.min} Puan)`;
+            } else {
+                label.textContent = `Maksimum Rütbeye Ulaşıldı: YUVARLAMA KRALI 👑`;
+            }
+
+            const totalPercent = Math.min(100, Math.max(0, Math.floor((score / 1000) * 100)));
+            percentText.textContent = `${score} / 1000 Puan (%${totalPercent})`;
+            bar.style.width = `${totalPercent}%`;
+
+            // Check 1000 point win condition
+            if (score >= 1000) {
+                document.getElementById('headerTrophyBadge').classList.remove('hidden');
+                if (!trophyAwarded) {
+                    trophyAwarded = true;
+                    setTimeout(triggerTrophyVictory, 500);
+                }
+            }
+        }
+
+        function triggerTrophyVictory() {
+            playFanfareSound();
+            triggerConfetti(150);
+            document.getElementById('trophyModal').classList.remove('hidden');
+        }
+
+        function closeTrophyModal() {
+            document.getElementById('trophyModal').classList.add('hidden');
+        }
+
+        function setDigitLevel(mode) {
+            if (isSpinning) return;
+            currentMode = mode;
+
+            document.querySelectorAll('.digit-selector').forEach(btn => {
+                btn.classList.remove('bg-gradient-to-r', 'from-amber-500', 'to-orange-500', 'text-slate-950', 'scale-105', 'active');
+                btn.classList.add('bg-slate-800', 'text-slate-300');
+            });
+
+            const activeBtnMap = { '4': 'digitBtn4', '5': 'digitBtn5', '6': 'digitBtn6', 'mixed': 'digitBtnMixed' };
+            const activeBtn = document.getElementById(activeBtnMap[mode]);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-slate-800', 'text-slate-300');
+                activeBtn.classList.add('bg-gradient-to-r', 'from-amber-500', 'to-orange-500', 'text-slate-950', 'scale-105', 'active');
+            }
+
+            pullLever();
+        }
+
+        function generateRandomNumber() {
+            let digits = 4;
+            if (currentMode === '4') digits = 4;
+            else if (currentMode === '5') digits = 5;
+            else if (currentMode === '6') digits = 6;
+            else if (currentMode === 'mixed') {
+                const choices = [4, 5, 6];
+                digits = choices[Math.floor(Math.random() * choices.length)];
+            }
+            currentDigitCount = digits;
+
+            document.getElementById('digitCountBadge').textContent = `${digits} Basamaklı`;
+
+            const min = Math.pow(10, digits - 1);
+            const max = Math.pow(10, digits) - 1;
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function formatTRNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        function pullLever() {
+            if (isSpinning) return;
+            initAudio();
+            playLeverSound();
+
+            isSpinning = true;
+
+            // Unlock Question for new attempt
+            questionAnswered = false;
+            unlockInputsAndCheckButton();
+
+            // Reset Inputs & Statuses
+            resetInputs();
+
+            // Generate target number
+            currentNumber = generateRandomNumber();
+            const formattedStr = formatTRNumber(currentNumber);
+            const digitChars = formattedStr.split('');
+
+            // Reel spinning animation
+            renderReels(formattedStr, true);
+
+            let spinInterval = setInterval(() => {
+                playSpinTick();
+                document.querySelectorAll('.reel-tile').forEach(reel => {
+                    reel.textContent = Math.floor(Math.random() * 10);
+                });
+            }, 70);
+
+            setTimeout(() => {
+                clearInterval(spinInterval);
+                stopReelsSequentially(digitChars);
+            }, 900);
+        }
+
+        function renderReels(numberStr, isSpinning = false) {
+            const container = document.getElementById('reelsContainer');
+            container.innerHTML = '';
+            const digits = numberStr.split('');
+            
+            digits.forEach((digit) => {
+                if (digit === '.') {
+                    const dotBox = document.createElement('div');
+                    dotBox.className = 'text-2xl sm:text-4xl font-black text-amber-400 px-0.5 sm:px-1 flex items-end pb-2';
+                    dotBox.textContent = '.';
+                    container.appendChild(dotBox);
+                } else {
+                    const reel = document.createElement('div');
+                    reel.className = `reel-tile w-9 h-14 sm:w-14 sm:h-20 rounded-2xl flex items-center justify-center text-2xl sm:text-4xl font-black border-2 border-slate-300 ${isSpinning ? 'blur-spin' : ''}`;
+                    reel.textContent = isSpinning ? Math.floor(Math.random() * 10) : digit;
+                    container.appendChild(reel);
+                }
+            });
+        }
+
+        function stopReelsSequentially(digitChars) {
+            const container = document.getElementById('reelsContainer');
+            container.innerHTML = '';
+
+            digitChars.forEach((char, index) => {
+                if (char === '.') {
+                    const dotBox = document.createElement('div');
+                    dotBox.className = 'text-2xl sm:text-4xl font-black text-amber-400 px-0.5 sm:px-1 flex items-end pb-2';
+                    dotBox.textContent = '.';
+                    container.appendChild(dotBox);
+                } else {
+                    const reel = document.createElement('div');
+                    reel.className = 'reel-tile w-9 h-14 sm:w-14 sm:h-20 rounded-2xl flex items-center justify-center text-2xl sm:text-4xl font-black border-2 border-slate-300 blur-spin';
+                    reel.id = `reel-${index}`;
+                    reel.textContent = Math.floor(Math.random() * 10);
+                    container.appendChild(reel);
+                }
+            });
+
+            let delay = 0;
+            const digitIndices = [];
+            digitChars.forEach((char, idx) => {
+                if (char !== '.') digitIndices.push(idx);
+            });
+
+            digitIndices.forEach((charIdx, i) => {
+                setTimeout(() => {
+                    const reel = document.getElementById(`reel-${charIdx}`);
+                    if (reel) {
+                        reel.classList.remove('blur-spin');
+                        reel.textContent = digitChars[charIdx];
+                        reel.classList.add('scale-110', 'border-amber-400');
+                        setTimeout(() => reel.classList.remove('scale-110'), 150);
+                        playStopTick();
+                    }
+
+                    if (i === digitIndices.length - 1) {
+                        isSpinning = false;
+                        document.getElementById('spinBtn').disabled = false;
+                        document.getElementById('inputTen').focus();
+                        updateHintText();
+                    }
+                }, delay);
+                delay += 180;
+            });
+        }
+
+        function resetInputs() {
+            const inputTen = document.getElementById('inputTen');
+            const inputHundred = document.getElementById('inputHundred');
+
+            inputTen.value = '';
+            inputHundred.value = '';
+
+            inputTen.classList.remove('input-correct', 'input-wrong');
+            inputHundred.classList.remove('input-correct', 'input-wrong');
+
+            document.getElementById('badgeTen').className = 'hidden absolute right-3 top-1/2 -translate-y-1/2 text-xl';
+            document.getElementById('badgeHundred').className = 'hidden absolute right-3 top-1/2 -translate-y-1/2 text-xl';
+
+            document.getElementById('feedbackTen').textContent = 'Cevabını Yaz...';
+            document.getElementById('feedbackTen').className = 'mt-2 text-xs font-bold text-slate-400 text-center';
+
+            document.getElementById('feedbackHundred').textContent = 'Cevabını Yaz...';
+            document.getElementById('feedbackHundred').className = 'mt-2 text-xs font-bold text-slate-400 text-center';
+
+            document.getElementById('mainFeedbackBox').className = 'hidden w-full p-4 rounded-2xl text-center font-bold text-sm transition-all border shadow-lg';
+            document.getElementById('hintCard').classList.add('hidden');
+        }
+
+        function lockInputsAndCheckButton() {
+            document.getElementById('inputTen').disabled = true;
+            document.getElementById('inputHundred').disabled = true;
+            document.getElementById('checkBtn').disabled = true;
+            document.getElementById('lockedNotice').classList.remove('hidden');
+        }
+
+        function unlockInputsAndCheckButton() {
+            document.getElementById('inputTen').disabled = false;
+            document.getElementById('inputHundred').disabled = false;
+            document.getElementById('checkBtn').disabled = false;
+            document.getElementById('lockedNotice').classList.add('hidden');
+        }
+
+        function calculateNearestTen(num) {
+            return Math.round(num / 10) * 10;
+        }
+
+        function calculateNearestHundred(num) {
+            return Math.round(num / 100) * 100;
+        }
+
+        function parseCleanNumber(valStr) {
+            if (!valStr) return NaN;
+            const cleaned = valStr.toString().replace(/[\.\s,]/g, '');
+            return parseInt(cleaned, 10);
+        }
+
+        function checkAnswers() {
+            if (isSpinning || currentNumber === 0) return;
+
+            // Security Check: Lock re-verification
+            if (questionAnswered) {
+                showMainFeedback('🔒 Bu soruyu zaten yanıtladın! Yeni puan kazanmak için kolu çek!', 'warning');
+                return;
+            }
+
+            const inputTenVal = document.getElementById('inputTen').value.trim();
+            const inputHundredVal = document.getElementById('inputHundred').value.trim();
+
+            if (!inputTenVal || !inputHundredVal) {
+                showMainFeedback('⚠️ Lütfen hem En Yakın Onluk hem de En Yakın Yüzlük alanlarını doldur!', 'warning');
+                return;
+            }
+
+            const userTen = parseCleanNumber(inputTenVal);
+            const userHundred = parseCleanNumber(inputHundredVal);
+
+            const correctTen = calculateNearestTen(currentNumber);
+            const correctHundred = calculateNearestHundred(currentNumber);
+
+            const isTenCorrect = (userTen === correctTen);
+            const isHundredCorrect = (userHundred === correctHundred);
+
+            // LOCK QUESTION IMMEDIATELY TO PREVENT DOUBLE POINTS
+            questionAnswered = true;
+            lockInputsAndCheckButton();
+
+            // Input UI styling
+            const inputTenElem = document.getElementById('inputTen');
+            const inputHundredElem = document.getElementById('inputHundred');
+
+            inputTenElem.classList.add(isTenCorrect ? 'input-correct' : 'input-wrong');
+            inputHundredElem.classList.add(isHundredCorrect ? 'input-correct' : 'input-wrong');
+
+            // Update Badges
+            const badgeTen = document.getElementById('badgeTen');
+            const feedbackTen = document.getElementById('feedbackTen');
+            badgeTen.classList.remove('hidden');
+
+            if (isTenCorrect) {
+                badgeTen.innerHTML = '<i class="fas fa-circle-check text-emerald-400"></i>';
+                feedbackTen.textContent = '✅ Doğru!';
+                feedbackTen.className = 'mt-2 text-xs font-bold text-emerald-400 text-center';
+            } else {
+                badgeTen.innerHTML = '<i class="fas fa-circle-xmark text-red-400"></i>';
+                feedbackTen.textContent = `❌ Doğru Onluk: ${formatTRNumber(correctTen)}`;
+                feedbackTen.className = 'mt-2 text-xs font-bold text-red-400 text-center';
+            }
+
+            const badgeHundred = document.getElementById('badgeHundred');
+            const feedbackHundred = document.getElementById('feedbackHundred');
+            badgeHundred.classList.remove('hidden');
+
+            if (isHundredCorrect) {
+                badgeHundred.innerHTML = '<i class="fas fa-circle-check text-emerald-400"></i>';
+                feedbackHundred.textContent = '✅ Doğru!';
+                feedbackHundred.className = 'mt-2 text-xs font-bold text-emerald-400 text-center';
+            } else {
+                badgeHundred.innerHTML = '<i class="fas fa-circle-xmark text-red-400"></i>';
+                feedbackHundred.textContent = `❌ Doğru Yüzlük: ${formatTRNumber(correctHundred)}`;
+                feedbackHundred.className = 'mt-2 text-xs font-bold text-red-400 text-center';
+            }
+
+            // Record session history
+            sessionHistory.unshift({
+                number: currentNumber,
+                userTen: isNaN(userTen) ? inputTenVal : userTen,
+                userHundred: isNaN(userHundred) ? inputHundredVal : userHundred,
+                correctTen,
+                correctHundred,
+                isBothCorrect: (isTenCorrect && isHundredCorrect)
+            });
+
+            // SCORING (+10 for both correct, -10 for error)
+            if (isTenCorrect && isHundredCorrect) {
+                playSuccessSound();
+                triggerConfetti(60);
+
+                score += 10;
+                streak += 1;
+
+                showMainFeedback(`🎉 Tebrikler ${studentName}! Sayı: ${formatTRNumber(currentNumber)} ➔ Onluk: ${formatTRNumber(correctTen)} | Yüzlük: ${formatTRNumber(correctHundred)}. <span class="text-emerald-300 font-extrabold">+10 Puan Kazandın!</span> Yeni soru için 'KOLU ÇEK' butonuna bas!`, 'success');
+            } else {
+                playErrorSound();
+                streak = 0;
+                const oldScore = score;
+                score = Math.max(0, score - 10);
+                const lostPts = oldScore - score;
+
+                let scoreNotice = lostPts > 0 ? `<span class="text-red-300 font-extrabold">-10 Puan!</span>` : `(Puanın 0'ın altına düşmez)`;
+
+                showMainFeedback(`❌ Yanlış Cevap! Sayı: ${formatTRNumber(currentNumber)} ➔ Doğru Onluk: ${formatTRNumber(correctTen)} | Doğru Yüzlük: ${formatTRNumber(correctHundred)}. ${scoreNotice} İpucunu incele ve 'KOLU ÇEK' butonuna bas!`, 'error');
+                document.getElementById('hintCard').classList.remove('hidden');
+            }
+
+            // Update Scoreboard & Ranks
+            document.getElementById('scoreDisplay').textContent = score;
+            document.getElementById('streakDisplay').textContent = streak;
+            updateRankDisplay();
+        }
+
+        function showMainFeedback(msg, type) {
+            const box = document.getElementById('mainFeedbackBox');
+            box.classList.remove('hidden', 'bg-emerald-900/90', 'border-emerald-500', 'text-emerald-200', 'bg-amber-900/90', 'border-amber-500', 'text-amber-200', 'bg-red-900/90', 'border-red-500', 'text-red-200');
+
+            if (type === 'success') {
+                box.classList.add('bg-emerald-900/90', 'border-emerald-500', 'text-emerald-200');
+            } else if (type === 'warning') {
+                box.classList.add('bg-amber-900/90', 'border-amber-500', 'text-amber-200');
+            } else {
+                box.classList.add('bg-red-900/90', 'border-red-500', 'text-red-200');
+            }
+
+            box.innerHTML = msg;
+        }
+
+        function updateHintText() {
+            if (!currentNumber) return;
+
+            const numStr = currentNumber.toString();
+            const lastDigit = parseInt(numStr.charAt(numStr.length - 1), 10);
+            const tensDigit = parseInt(numStr.charAt(numStr.length - 2), 10);
+            const correctTen = calculateNearestTen(currentNumber);
+            const correctHundred = calculateNearestHundred(currentNumber);
+
+            let tenMsg = `Birler basamağı <span class="font-black text-amber-300">${lastDigit}</span>. `;
+            if (lastDigit < 5) {
+                tenMsg += `${lastDigit} < 5 ➔ <span class="text-blue-300 font-bold">Aşağı (Kendi Onluğu)</span>: <span class="font-black text-emerald-300">${formatTRNumber(correctTen)}</span>.`;
+            } else {
+                tenMsg += `${lastDigit} ≥ 5 ➔ <span class="text-emerald-300 font-bold">Yukarı (Üst Onluk)</span>: <span class="font-black text-emerald-300">${formatTRNumber(correctTen)}</span>.`;
+            }
+            document.getElementById('hintTenText').innerHTML = tenMsg;
+
+            let hundredMsg = `Onlar basamağı <span class="font-black text-amber-300">${tensDigit}</span>. `;
+            if (tensDigit < 5) {
+                hundredMsg += `${tensDigit} < 5 ➔ <span class="text-blue-300 font-bold">Aşağı (Kendi Yüzlüğü)</span>: <span class="font-black text-emerald-300">${formatTRNumber(correctHundred)}</span>.`;
+            } else {
+                hundredMsg += `${tensDigit} ≥ 5 ➔ <span class="text-emerald-300 font-bold">Yukarı (Üst Yüzlük)</span>: <span class="font-black text-emerald-300">${formatTRNumber(correctHundred)}</span>.`;
+            }
+            document.getElementById('hintHundredText').innerHTML = hundredMsg;
+        }
+
+        function toggleHintCard() {
+            document.getElementById('hintCard').classList.toggle('hidden');
+        }
+
+        function updateHistoryTable() {
+            const tbody = document.getElementById('historyTableBody');
+            const emptyMsg = document.getElementById('emptyHistoryMsg');
+
+            if (sessionHistory.length === 0) {
+                tbody.innerHTML = '';
+                emptyMsg.classList.remove('hidden');
+                document.getElementById('historyCount').textContent = 'Toplam Soru: 0';
+                return;
+            }
+
+            emptyMsg.classList.add('hidden');
+            document.getElementById('historyCount').textContent = `Toplam Soru: ${sessionHistory.length}`;
+
+            tbody.innerHTML = sessionHistory.map(item => `
+                <tr class="hover:bg-slate-900/60">
+                    <td class="p-3 font-bold text-amber-300">${formatTRNumber(item.number)}</td>
+                    <td class="p-3 ${item.userTen === item.correctTen ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}">
+                        ${formatTRNumber(item.userTen)} ${item.userTen === item.correctTen ? '✓' : `(Doğru: ${formatTRNumber(item.correctTen)})`}
+                    </td>
+                    <td class="p-3 ${item.userHundred === item.correctHundred ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}">
+                        ${formatTRNumber(item.userHundred)} ${item.userHundred === item.correctHundred ? '✓' : `(Doğru: ${formatTRNumber(item.correctHundred)})`}
+                    </td>
+                    <td class="p-3 text-center">
+                        ${item.isBothCorrect 
+                            ? '<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-xs font-bold">+10 Pt</span>' 
+                            : '<span class="bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full text-xs font-bold">-10 Pt</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function clearHistory() {
+            sessionHistory = [];
+            updateHistoryTable();
+        }
+
+        function openRulesModal() { document.getElementById('rulesModal').classList.remove('hidden'); }
+        function closeRulesModal() { document.getElementById('rulesModal').classList.add('hidden'); }
+        function openHistoryModal() { updateHistoryTable(); document.getElementById('historyModal').classList.remove('hidden'); }
+        function closeHistoryModal() { document.getElementById('historyModal').classList.add('hidden'); }
+
+        /* Confetti Animation Effect */
+        function triggerConfetti(count = 70) {
+            const canvas = document.getElementById('confettiCanvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const particles = [];
+            const colors = ['#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6', '#facc15'];
+
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2 - 50,
+                    vx: (Math.random() - 0.5) * 16,
+                    vy: (Math.random() - 0.7) * 16,
+                    size: Math.random() * 8 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rotation: Math.random() * 360,
+                    rSpeed: (Math.random() - 0.5) * 10,
+                    gravity: 0.25,
+                    opacity: 1
+                });
+            }
+
+            let animationFrame;
+            function render() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let alive = false;
+
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += p.gravity;
+                    p.rotation += p.rSpeed;
+                    p.opacity -= 0.012;
+
+                    if (p.opacity > 0) {
+                        alive = true;
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate((p.rotation * Math.PI) / 180);
+                        ctx.globalAlpha = Math.max(0, p.opacity);
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                        ctx.restore();
+                    }
+                });
+
+                if (alive) {
+                    animationFrame = requestAnimationFrame(render);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    cancelAnimationFrame(animationFrame);
+                }
+            }
+
+            render();
+        }
+
+        /* Keyboard Enter listener */
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const nameModalHidden = document.getElementById('nameModal').classList.contains('hidden');
+                if (nameModalHidden) {
+                    checkAnswers();
+                }
+            }
+        });
+
+        /* Initialize game on window load */
+        window.onload = function() {
+            updateRankDisplay();
+            openNameModal(false);
+            pullLever();
+        };
+    </script>
+</body>
+</html>
